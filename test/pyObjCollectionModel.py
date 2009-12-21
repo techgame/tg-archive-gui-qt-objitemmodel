@@ -7,7 +7,7 @@ from siteFrameworks import SiteFrameworkFinder
 sfFinder = SiteFrameworkFinder()
 r = sfFinder.addSiteFramework('AppHostQt')
 
-import os, sys
+import os, sys, time
 sys.path.append('.')
 sys.path.append(os.path.abspath('..'))
 
@@ -25,29 +25,38 @@ class ModuleName(bcm.BasicItemAdaptor):
 
 class Namespace(bcm.BasicItemCollection):
     def __init__(self, target, parent=None):
-        self.target = target
+        self.targetNS = vars(target)
+        if self.targetNS:
+            self.targetNS = iter(sorted(self.targetNS.items()))
+        else: self.targetNS = None
+
+        self.target = repr(target)
         super(Namespace, self).__init__(parent)
 
     def __repr__(self):
-        return "<%s %r>" % (self.__class__.__name__, self.target)
+        return "<%s %s>" % (self.__class__.__name__, self.target)
 
     def hasChildren(self, oi):
-        if self._childList:
+        if self._entryList:
             return True
-        return bool(vars(self.target))
+        return bool(self.targetNS)
     def canFetchMore(self, oi):
-        return True
+        return bool(self.targetNS)
 
     _fetched = False
     def fetchMore(self, oi):
-        if self._childList:
+        if not self.targetNS:
             return
 
-        ns = vars(self.target).items()
-        if ns:
-            oi.model().beginInsertRows(oi.mi, 0, len(ns))
-            self.extend(sorted(ns))
-            oi.model().endInsertRows()
+        for e in self.targetNS:
+            if e[0].startswith('_'): 
+                continue
+            C = len(self._entryList)
+            oi.beginInsertRows(C, C)
+            self.append(e)
+            oi.endInsertRows()
+
+        else: self.targetNS = None
 
     def newEntryForData(self, data):
         name, ns = data

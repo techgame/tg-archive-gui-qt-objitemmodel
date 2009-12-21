@@ -3,6 +3,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 import weakref
+import collections
 from baseCollectionModel import Qt, QVariant, QModelIndex
 from baseCollectionModel import BaseItemCollection, BaseCollectionItemModel
 
@@ -31,7 +32,9 @@ class BasicItemAdaptor(object):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class BasicItemCollection(BaseItemCollection):
+    _entryList = None
     def __init__(self, parent=None):
+        self._ref = weakref.ref(self)
         self.init(parent)
 
     def isCollectableItem(self): return True
@@ -47,37 +50,36 @@ class BasicItemCollection(BaseItemCollection):
         entry = self.newEntryForData(data)
         self.appendEntry(entry)
     def appendEntry(self, entry):
-        self._checkEntry(entry)
-        self._childList.append(entry)
+        self._entryList.append(self._asEntry(entry))
         self._invalidate()
 
     def insert(self, index, data):
         entry = self.newEntryForData(data)
         self.insertEntry(index, entry)
     def insertEntry(self, index, entry):
-        self._checkEntry(entry)
-        self._childList.insert(index, entry)
+        self._entryList.insert(index, self._asEntry(entry))
         self._invalidate()
 
     def extend(self, iterData):
         entries = (self.newEntryForData(d) for d in iterData)
         self.extendEntries(entries)
     def extendEntries(self, iterEntries):
-        checkEntry = self._checkEntry
-        self._childList.extend(e for e in iterEntries if checkEntry(e))
+        checkEntry = self._asEntry
+        self._entryList.extend(checkEntry(e) for e in iterEntries)
         self._invalidate()
 
-    def _checkEntry(self, entry):
+    def _asEntry(self, entry):
+        """entry becomes of the form (item, collection, weakref.ref(self))"""
         if not entry[0].isItemAdaptor():
             raise ValueError("Entry[0] is not an item adaptor")
         if entry[1] is None:
-            return True
+            return (entry[0], None, self._ref)
 
         if not entry[1].isItemCollection():
             raise ValueError("Entry[1] is not an item collection")
         if entry[1].parentCollection() is not self:
             raise ValueError("Entry[1]'s parent does not match structure")
-        return True
+        return (entry[0], entry[1], self._ref)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -86,7 +88,7 @@ class BasicItemCollection(BaseItemCollection):
         if parent is not None:
             self._parent = weakref.ref(parent)
 
-        self._childList = [] # child -> row, col
+        self._entryList = [] # child -> row, col
 
     def _invalidate(self):
         self._childMap = None
@@ -98,32 +100,36 @@ class BasicItemCollection(BaseItemCollection):
         ref = self._parent
         if ref is not None:
             return ref()
-    def childEntryAtRowCol(self, row, column):
-        """Given (row, column), returns a tuple of (item, collection).
+    def entryAtRowCol(self, row, column):
+        """Given (row, column), returns an entry tuple of (item, collection).
 
         Typically, only row is used to resolve down to an item."""
-        return self._childList[row]
-    def childRowColumn(self, child):
+        return self._entryList[row]
+    def rowColEntryForChild(self, child):
         """Find the (row, column) for child.  
         
         Used to resolve parent of a model index"""
         cmap = self._childRowMap()
-        return (cmap[child], 0)
+        row = cmap.get(child, None)
+        if row is None:
+            return None, None, child
+        entry = self._entryList[row]
+        return row, 0, entry
 
     _childMap = None
     def _childRowMap(self):
         cmap = self._childMap
         if cmap is None:
-            cmap = dict((e,r) for r,entry in enumerate(self._childList) for e in entry)
+            cmap = dict((e,r) for r,entry in enumerate(self._entryList) for e in entry)
             self._childMap = cmap
         return cmap
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def rowCount(self, oi):
-        return len(self._childList)
+        return len(self._entryList)
     def hasChildren(self, oi):
-        return bool(self._childList)
+        return bool(self._entryList)
     def canFetchMore(self, oi):
         return False
     def fetchMore(self, oi):
