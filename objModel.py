@@ -96,8 +96,6 @@ class BaseObjectCollectionItemModel(QAbstractItemModel):
             return oi.item().flags(oi)
         else: return 0
     def data(self, mi, role):
-        if role != Qt.DisplayRole:
-            return QVariant()
         for oi in self.withObjIndex(mi):
             return oi.item().data(oi, role)
         else: return QVariant()
