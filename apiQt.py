@@ -24,8 +24,10 @@ if not PySide and not PyQt4:
 if PySide is not None:
     from PySide import QtCore, QtGui
     from PySide.QtCore import Qt, QVariant, QAbstractItemModel, QModelIndex
+    from PySide.QtGui import QAbstractItemDelegate, QStyledItemDelegate
 
 if PyQt4 is not None:
     from PyQt4 import QtCore, QtGui
     from PyQt4.QtCore import Qt, QVariant, QAbstractItemModel, QModelIndex
+    from PyQt4.QtGui import QAbstractItemDelegate, QStyledItemDelegate
 

@@ -98,41 +98,8 @@ class ModuleCollection(OIM.ObjCollectionEx):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-css_treeview = '''
-QTreeView#myId {
-    show-decoration-selected: 1;
-}
-
-QTreeView#myId::item {
-    border: 1px solid #d9d9d9;
-    border-top-color: transparent;
-    border-bottom-color: transparent;
-}
-
-QTreeView#myId::item:hover {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #e7effd, stop: 1 #cbdaf1);
-    border: 1px solid #bfcde4;
-}
-
-QTreeView#myId::item:selected {
-    border: 1px solid #567dbc;
-}
-
-QTreeView#myId::item:selected:active{
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6ea1f1, stop: 1 #567dbc);
-}
-
-QTreeView#myId::item:selected:!active {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6b9be8, stop: 1 #577fbf);
-}
-
-QTreeView::branch {
-}
-'''
-class MyNeatStyledDelegate(QtGui.QStyledItemDelegate):
+class MyNeatStyledDelegate(OIM.ObjectItemDelegate):
     lineHeight = 0
-    def asObjIndex(self, mi):
-        return mi.model().asObjIndex(mi)
     def paint(self, painter, option, mi):
         painter.save()
         item = self.asObjIndex(mi).item()
@@ -180,40 +147,10 @@ class TitleDelegate(MyNeatStyledDelegate):
     lineHeight = 1.5
 
 
-class VisitingDelegate(QtGui.QAbstractItemDelegate):
+class VisitingDelegate(OIM.ObjectDispatchDelegate):
     def asDelegate(self, mi):
         oi = self.asObjIndex(mi)
         return oi, oi.item().accept(self)
-    def asObjIndex(self, mi):
-        return mi.model().asObjIndex(mi)
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    def paint(self, painter, option, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.paint(painter, option, mi)
-    def sizeHint(self, option, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.sizeHint(option, mi)
-
-    def createEditor(self, parent, option, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.createEditor(parent, option, mi)
-    def editorEvent(self, event, model, option, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.editorEvent(event, model, option, mi)
-    def updateEditorGeometry(self, editor, option, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.updateEditorGeometry(editor, option, mi)
-    
-    def setEditorData(self, editor, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.setEditorData(editor, mi)
-    def setModelData(self, editor, model, mi):
-        oi, dg = self.asDelegate(mi)
-        return dg.setModelData(editor, model, mi)
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     _d_title = None
     def visitTitle(self, item):
@@ -235,9 +172,6 @@ class VisitingDelegate(QtGui.QAbstractItemDelegate):
         return d
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-class MyTreeView(QtGui.QTreeView):
-    pass
 
 class Form(QtGui.QMainWindow):
     def initGui(self):
@@ -284,13 +218,44 @@ class Form(QtGui.QMainWindow):
         self.root.extend([cNS, cPath])
         self.model = OIM.ObjItemModel(self.root)
 
-        self.view = MyTreeView()
-        self.view.setObjectName("myId")
-        #self.view.setStyleSheet(css_treeview)
+        self.view = QtGui.QTreeView()
         self.view.setModel(self.model)
         self.view.setItemDelegate(VisitingDelegate(self.view))
         self.setCentralWidget(self.view)
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~ Constants / Variiables / Etc. 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+css_treeview = '''
+QTreeView {
+    show-decoration-selected: 1;
+}
+
+QTreeView::item {
+    border: 1px solid #d9d9d9;
+    border-top-color: transparent;
+    border-bottom-color: transparent;
+}
+
+QTreeView::item:hover {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #e7effd, stop: 1 #cbdaf1);
+    border: 1px solid #bfcde4;
+}
+
+QTreeView::item:selected {
+    border: 1px solid #567dbc;
+}
+
+QTreeView::item:selected:active{
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6ea1f1, stop: 1 #567dbc);
+}
+
+QTreeView::item:selected:!active {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6b9be8, stop: 1 #577fbf);
+}
+'''
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Main 
