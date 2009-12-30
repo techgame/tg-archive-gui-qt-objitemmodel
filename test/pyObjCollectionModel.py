@@ -5,23 +5,20 @@
 
 import os, sys, time
 
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtGui import QStyledItemDelegate, QAbstractItemDelegate
-from PyQt4.QtCore import Qt, QModelIndex
-
-from TG.gui.qt import itemModel
+from TG.gui.qt.objectItemModel.apiQt import QtCore, QtGui
+from TG.gui.qt import objectItemModel as OIM
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class NamespaceEntry(itemModel.ObjAdaptor):
+class NamespaceEntry(OIM.ObjAdaptor):
     def __init__(self, name, target, parent):
         self.value = '%s (%s)' % (name, target.__class__.__name__)
     def accept(self, v): 
         return v.visitNamespaceEntry(self)
 
-class Namespace(itemModel.ObjCollectionEx):
+class Namespace(OIM.ObjCollectionEx):
     def __init__(self, name, target, parent=None):
         self.name = name
         self.target = target
@@ -79,16 +76,16 @@ class Namespace(itemModel.ObjCollectionEx):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class GroupTitle(itemModel.ObjAdaptor):
+class GroupTitle(OIM.ObjAdaptor):
     def accept(self, v): return v.visitTitle(self)
 
-class GroupCollection(itemModel.ObjCollectionEx):
+class GroupCollection(OIM.ObjCollectionEx):
     name = None
     def asItemAdaptor(self, parent):
         if self.name is not None:
             return GroupTitle(self.name, parent)
 
-class ModuleCollection(itemModel.ObjCollectionEx):
+class ModuleCollection(OIM.ObjCollectionEx):
     name = None
     def asItemAdaptor(self, parent):
         if self.name is not None:
@@ -132,7 +129,7 @@ QTreeView#myId::item:selected:!active {
 QTreeView::branch {
 }
 '''
-class MyNeatStyledDelegate(QStyledItemDelegate):
+class MyNeatStyledDelegate(QtGui.QStyledItemDelegate):
     lineHeight = 0
     def asObjIndex(self, mi):
         return mi.model().asObjIndex(mi)
@@ -183,7 +180,7 @@ class TitleDelegate(MyNeatStyledDelegate):
     lineHeight = 1.5
 
 
-class VisitingDelegate(QAbstractItemDelegate):
+class VisitingDelegate(QtGui.QAbstractItemDelegate):
     def asDelegate(self, mi):
         oi = self.asObjIndex(mi)
         return oi, oi.item().accept(self)
@@ -285,7 +282,7 @@ class Form(QtGui.QMainWindow):
         cPath.extend(r)
 
         self.root.extend([cNS, cPath])
-        self.model = itemModel.ObjItemModel(self.root)
+        self.model = OIM.ObjItemModel(self.root)
 
         self.view = MyTreeView()
         self.view.setObjectName("myId")
