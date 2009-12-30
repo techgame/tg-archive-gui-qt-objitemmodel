@@ -120,11 +120,14 @@ class ObjectCollectionEx(ObjectCollection):
             pass
         try:
             if not data.isObjectAdaptor():
-                data = data.asItemAdaptor(self)
+                data = data.asObjectAdaptor(self)
         except AttributeError, e: 
-            data = BasicItemAdaptor(data, self)
-
+            data = self.newAdaptorForData(data, self)
         return (data, coll)
+
+    ObjectAdaptor = ObjectAdaptor
+    def newAdaptorForData(self, data):
+        return self.ObjectAdaptor(data, self)
 
     def append(self, data):
         entry = self.newEntryForData(data)
