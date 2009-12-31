@@ -122,7 +122,7 @@ class ObjectCollectionEx(ObjectCollection):
             if not data.isObjectAdaptor():
                 data = data.asObjectAdaptor(self)
         except AttributeError, e: 
-            data = self.newAdaptorForData(data, self)
+            data = self.newAdaptorForData(data)
         return (data, coll)
 
     ObjectAdaptor = ObjectAdaptor

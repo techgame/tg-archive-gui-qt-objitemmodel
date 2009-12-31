@@ -5,8 +5,8 @@
 
 import os, sys, time
 
-from TG.gui.qt.objectItemModel.apiQt import QtCore, QtGui
-from TG.gui.qt import objectItemModel as OIM
+from TG.gui.qt.objItemModel.apiQt import QtCore, QtGui, Qt, QVariant
+from TG.gui.qt import objItemModel as OIM
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -18,7 +18,12 @@ class NamespaceEntry(OIM.ObjAdaptor):
     def accept(self, v): 
         return v.visitNamespaceEntry(self)
 
+class GroupTitle(OIM.ObjAdaptor):
+    def accept(self, v): return v.visitTitle(self)
+
+
 class Namespace(OIM.ObjCollectionEx):
+    ObjectAdaptor = NamespaceEntry
     def __init__(self, name, target, parent=None):
         self.name = name
         self.target = target
@@ -30,7 +35,7 @@ class Namespace(OIM.ObjCollectionEx):
         super(Namespace, self).__init__(parent)
 
     name = None
-    def asItemAdaptor(self, parent):
+    def asObjectAdaptor(self, parent):
         if self.name is not None:
             return NamespaceEntry(self.name, self.target, parent)
 
@@ -72,79 +77,75 @@ class Namespace(OIM.ObjCollectionEx):
             return (NamespaceEntry(name, ns, self), None)
         else: 
             coll = Namespace(name, ns, self)
-            return (coll.asItemAdaptor(self), coll)
+            return (coll.asObjectAdaptor(self), coll)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class GroupTitle(OIM.ObjAdaptor):
-    def accept(self, v): return v.visitTitle(self)
-
 class GroupCollection(OIM.ObjCollectionEx):
+    ObjectAdaptor = GroupTitle
     name = None
-    def asItemAdaptor(self, parent):
+    def asObjectAdaptor(self, parent):
         if self.name is not None:
             return GroupTitle(self.name, parent)
 
 class ModuleCollection(OIM.ObjCollectionEx):
+    ObjectAdaptor = GroupTitle
     name = None
-    def asItemAdaptor(self, parent):
+    def asObjectAdaptor(self, parent):
         if self.name is not None:
             return GroupTitle(self.name, parent)
     def newEntryForData(self, data):
         name, ns = data
         assert ns is not None
         coll = Namespace(name, ns, self)
-        return (coll.asItemAdaptor(self), coll)
+        return (coll.asObjectAdaptor(self), coll)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class MyNeatStyledDelegate(OIM.ObjectItemDelegate):
-    lineHeight = 0
+class TextDocumentDelegate(OIM.ObjectItemDelegate):
+    fmt = "<font color='%(color)s'>%(text)s</font)>"
     def paint(self, painter, option, mi):
-        painter.save()
-        item = self.asObjIndex(mi).item()
+        oi = self.asObjIndex(mi)
 
         opt = QtGui.QStyleOptionViewItemV4(option)
-        self.initStyleOption(opt, mi)
+        #self.initStyleOption(opt, mi)
         opt.text = ''
+        doc = self.asTextDoc(option, oi)
 
+        painter.save()
         style = opt.widget.style()
         style.drawControl(style.CE_ItemViewItem, opt, painter, opt.widget)
 
         textRect = style.subElementRect(style.SE_ItemViewItemText, opt, opt.widget);
-        doc = self.asTextDoc(option, item)
         painter.translate(textRect.topLeft())
         doc.drawContents(painter)
 
         painter.restore()
 
     def sizeHint(self, option, mi):
-        item = self.asObjIndex(mi).item()
-        doc = self.asTextDoc(option, item)
+        oi = self.asObjIndex(mi)
+        doc = self.asTextDoc(option, oi)
         sz = doc.size()
-        sz = QtCore.QSize(sz.width(), sz.height()+self.lineHeight*option.fontMetrics.height())
+        sz = QtCore.QSize(sz.width(), sz.height())
         return sz
 
-    def asTextDoc(self, option, item):
-        text = item.data()
+    def asTextDoc(self, option, oi):
+        info = {'text':oi.item().data(oi, Qt.DisplayRole)}
+
         doc = QtGui.QTextDocument()
         doc.setDefaultFont(option.font)
         pal = option.palette
         if option.state & QtGui.QStyle.State_Selected:
             color = pal.color(pal.HighlightedText)
         else: color = pal.color(pal.Text)
-        doc.setHtml(self.fmt % (color.name(), text))
+        info['color'] = color.name()
+        doc.setHtml(self.fmt % info)
         return doc
 
-class NamespaceDelegate(MyNeatStyledDelegate):
-    fmt = "<font color='%s'>%s</font)>"
-    colorSelected = 'green'
-    colorNormal = 'gray'
-class TitleDelegate(MyNeatStyledDelegate):
-    fmt = "<h3><font color='%s'>%s</font)></h3>"
-    colorSelected = 'orange'
-    colorNormal = 'black'
-    lineHeight = 1.5
+class NamespaceDelegate(TextDocumentDelegate):
+    pass
+class TitleDelegate(TextDocumentDelegate):
+    fmt = "<h3><font color='%(color)s'>%(text)s</font)></h3>"
 
 
 class VisitingDelegate(OIM.ObjectDispatchDelegate):
@@ -157,8 +158,6 @@ class VisitingDelegate(OIM.ObjectDispatchDelegate):
         d = self._d_title
         if d is None:
             d = TitleDelegate(self.parent())
-            d.setObjectName("titleItem")
-            d.setProperty("purpose", "title")
             self._d_title = d
         return d
     _d_nsEntry = None
@@ -166,8 +165,6 @@ class VisitingDelegate(OIM.ObjectDispatchDelegate):
         d = self._d_nsEntry
         if d is None:
             d = NamespaceDelegate(self.parent())
-            d.setObjectName("entryItem")
-            d.setProperty("purpose", "entry")
             self._d_nsEntry = d
         return d
 

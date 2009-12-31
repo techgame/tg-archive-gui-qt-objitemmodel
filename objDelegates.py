@@ -10,15 +10,17 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-from .apiQt import QAbstractItemDelegate, QStyledItemDelegate
+from .apiQt import QAbstractItemDelegate, QItemDelegate, QStyledItemDelegate
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class ObjectDispatchDelegate(QAbstractItemDelegate):
+class ObjectDelegateMixin(object):
     def asObjIndex(self, mi):
         return mi.model().asObjIndex(mi)
+
+class ObjectDispatchDelegate(QAbstractItemDelegate, ObjectDelegateMixin):
     def asDelegate(self, mi):
         oi = self.asObjIndex(mi)
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
@@ -53,10 +55,11 @@ ObjDispatchDelegate = ObjectDispatchDelegate
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class ObjectItemDelegate(QStyledItemDelegate):
-    lineHeight = 0
-    def asObjIndex(self, mi):
-        return mi.model().asObjIndex(mi)
-
+class ObjectItemDelegate(QItemDelegate, ObjectDelegateMixin):
+    pass
 ObjItemDelegate = ObjectItemDelegate
+
+class ObjectStyledItemDelegate(QStyledItemDelegate, ObjectDelegateMixin):
+    pass
+ObjStyledItemDelegate = ObjectStyledItemDelegate
 
