@@ -11,23 +11,26 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 import weakref
+
 from .apiQt import Qt, QVariant, QModelIndex, QAbstractItemModel
 from .baseCollection import BaseObjectAdaptor, BaseObjectCollection
+from . import collectionOps as ops
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjectAdaptor(BaseObjectAdaptor):
-    def __init__(self, value, parent):
+    def __init__(self, value):
         self.value = value
 
     def __repr__(self):
-        data = self.data()
+        data = self.data(None, Qt.DisplayRole)
         return "<%s %r>" % (self.__class__.__name__, data)
 
+    _flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled
     def flags(self, oi=None):
-        return Qt.ItemIsSelectable | Qt.ItemIsEnabled
+        return self._flags
     def data(self, oi=None, role=Qt.DisplayRole):
         if role != Qt.DisplayRole:
             return QVariant()
@@ -35,38 +38,52 @@ class ObjectAdaptor(BaseObjectAdaptor):
     def setData(self, oi, value, role):
         return False
 
+    def asObjectCollection(self):
+        return None
+
 ObjAdaptor = ObjectAdaptor
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjectCollection(BaseObjectCollection):
     _entryList = None
-    def __init__(self, parent=None):
-        self._ref = weakref.ref(self)
-        self.init(parent)
 
-    _parent = None
-    def init(self, parent):
-        if parent is not None:
-            self._parent = weakref.ref(parent)
+    def __init__(self, entries=None):
+        self.Entry = self.Entry.newFlyweight(self)
+        self.init()
+        if entries:
+            self.extend(entries)
 
+    def init(self):
         self._entryList = []
 
-    def _invalidate(self):
-        self._childMap = None
-
-    def parentCollection(self):
+    _parentCollectionRef = None
+    def getParentCollection(self):
         """Returns the parent collection containing this collection.  
         
         Used to resolve parent of a model index"""
-        ref = self._parent
+        ref = self._parentCollectionRef
         if ref is not None:
             return ref()
+    def setParentCollection(self, parent):
+        if parent is not None:
+            parent = weakref.ref(parent)
+        self._parentCollectionRef = parent
+
+    def oiUpdate(self, oi, parentRef):
+        self._parentCollectionRef = parentRef
+        return self
+
     def entryAtRowCol(self, row, column):
         """Given (row, column), returns an entry tuple of (item, collection, parent).
 
         Typically, only row is used to resolve down to an item."""
-        return self._entryList[row]
+        e = self._entryList[row]
+        if not isinstance(e, self.Entry):
+            e = self.Entry(*e)
+            self._entryList[row] = e
+        return e
+
     def rowColEntryForChild(self, child):
         """Find the (row, column) for child.  
         
@@ -75,7 +92,7 @@ class ObjectCollection(BaseObjectCollection):
         row = cmap.get(child, None)
         if row is None:
             return None, None, child
-        entry = self._entryList[row]
+        entry = self.entryAtRowCol(row, 0)
         return row, 0, entry
 
     _childMap = None
@@ -85,6 +102,8 @@ class ObjectCollection(BaseObjectCollection):
             cmap = dict((e,r) for r,entry in enumerate(self._entryList) for e in entry)
             self._childMap = cmap
         return cmap
+    def invalidateCache(self):
+        self._childMap = None
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -103,66 +122,49 @@ class ObjectCollection(BaseObjectCollection):
 
         return QVariant()
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def normalizeEntries(self, entries):
+        normItem = self.normalizeItem
+        for idx,item in enumerate(entries):
+            if isinstance(item, self.Entry):
+                continue
+
+            item = normItem(item)
+            entries[idx] = self.Entry(*item)
+
+    def normalizeItem(self, item):
+        if isinstance(item, (tuple, list)):
+            return item
+
+        if item.isObjectCollection():
+            adp = item.asObjectAdaptor()
+            return (adp, item)
+
+        elif item.isObjectAdaptor():
+            coll = item.asObjectCollection()
+            return (item, coll)
+
+        raise ValueError("Cannot convert item into an entry")
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #~ Change Operations
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def changeOp(self, oi=None):
+        return ops.CollectionChangeOp(self, oi)
+
+    def append(self, item, oi=None):
+        with self.changeOp(oi) as entries:
+            entries.append(item)
+
+    def insert(self, index, item, oi=None):
+        with self.changeOp(oi) as entries:
+            entries.insert(index, item)
+
+    def extend(self, items, oi=None):
+        with self.changeOp(oi) as entries:
+            entries.extend(items)
+
 ObjCollection = ObjectCollection
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~ ObjectCollectionEx, now with insert/append/extend api!
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-class ObjectCollectionEx(ObjectCollection):
-    def newEntryForData(self, data):
-        """Returns a new tuple of (item, collection) for data"""
-        try:
-            coll = None
-            if data.isObjectCollection():
-                coll = data
-        except AttributeError: 
-            pass
-        try:
-            if not data.isObjectAdaptor():
-                data = data.asObjectAdaptor(self)
-        except AttributeError, e: 
-            data = self.newAdaptorForData(data)
-        return (data, coll)
-
-    ObjectAdaptor = ObjectAdaptor
-    def newAdaptorForData(self, data):
-        return self.ObjectAdaptor(data, self)
-
-    def append(self, data):
-        entry = self.newEntryForData(data)
-        self.appendEntry(entry)
-    def appendEntry(self, entry):
-        self._entryList.append(self._asEntry(entry))
-        self._invalidate()
-
-    def insert(self, index, data):
-        entry = self.newEntryForData(data)
-        self.insertEntry(index, entry)
-    def insertEntry(self, index, entry):
-        self._entryList.insert(index, self._asEntry(entry))
-        self._invalidate()
-
-    def extend(self, iterData):
-        entries = (self.newEntryForData(d) for d in iterData)
-        self.extendEntries(entries)
-    def extendEntries(self, iterEntries):
-        checkEntry = self._asEntry
-        self._entryList.extend(checkEntry(e) for e in iterEntries)
-        self._invalidate()
-
-    def _asEntry(self, entry):
-        """entry becomes of the form (item, collection, weakref.ref(self))"""
-        if not entry[0].isObjectAdaptor():
-            raise ValueError("Entry[0] is not an item adaptor")
-        if entry[1] is None:
-            return (entry[0], None, self._ref)
-
-        if not entry[1].isObjectCollection():
-            raise ValueError("Entry[1] is not an item collection")
-        if entry[1].parentCollection() is not self:
-            raise ValueError("Entry[1]'s parent does not match structure")
-        return (entry[0], entry[1], self._ref)
-
-ObjCollectionEx = ObjectCollectionEx
 

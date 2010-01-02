@@ -10,8 +10,49 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+import weakref
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class ObjectCollectionEntry(object):
+    __slots__ = ('item', 'collection')
+
+    item = None
+    collection = None
+    parent = None
+    def __init__(self, item, collection=None):
+        self.item = item
+        self.collection = collection
+
+    @classmethod
+    def newFlyweight(klass, parent, **ns):
+        bklass = getattr(klass, '__flyweight__', klass)
+        ns.update(__flyweight__=bklass, parent=weakref.ref(parent))
+        return type(bklass)("%s_%s"%(bklass.__name__, id(parent)), (bklass,), ns)
+
+    def getItem(self, oi):
+        e = self.item
+        if oi and e is not None: 
+            e = e.oiUpdate(oi, self.parent)
+        return e
+    def getCollection(self, oi):
+        e = self.collection
+        if oi and e is not None: 
+            e = e.oiUpdate(oi, self.parent)
+        return e
+    def getParent(self, oi=None):
+        e = self.parent
+        if e is not None:
+            return e()
+
+    def __len__(self): 
+        return 2
+    def __iter__(self): 
+        yield self.item
+        yield self.collection
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ObjectModelIndex(object):
@@ -37,40 +78,68 @@ class ObjectModelIndex(object):
     def isValid(self):
         return self.mi.isValid()
     def item(self): 
-        entry = self.mi.internalPointer()
-        return entry[0]
+        return self.entry().getItem(self)
     def collection(self): 
-        entry = self.mi.internalPointer()
-        return entry[1]
+        return self.entry().getCollection(self)
     def parent(self):
-        entry = self.mi.internalPointer()
-        return entry[2]()
+        return self.entry().getParent(self)
 
+    def entry(self): return self.mi.internalPointer()
     def rc(self): return (self.mi.row(), self.mi.column())
     def row(self): return self.mi.row()
     def column(self): return self.mi.column()
     def model(self): return self.mi.model()
 
+    def oiFindNext(self):
+        mi = self.findNext()
+        return self.mi.model().asObjIndex(mi)
+    def findNext(self):
+        mi = self.child()
+        if mi.isValid(): 
+            return mi
+        return self.sibling(1, self.column())
+
+    def child(self, dRow=0, dCol=0):
+        model = self.mi.model()
+        coll = self.collection()
+        if coll is None:
+            return model.InvalidIndex()
+        return coll.modelIndex(model, dRow, dCol)
+    def oiChild(self, dRow=0, dCol=0):
+        miChild = self.child(dRow, dCol)
+        return self.mi.model().asObjIndex(miChild)
+
     def sibling(self, dRow=0, dCol=0):
-        model = self.model()
+        mi = self.mi
+        model = mi.model()
         miParent = self.parent().asModelIndex(model)
-        return model.index(self.row()+dRow, self.column()+dCol, miParent)
+        return model.index(mi.row()+dRow, mi.column()+dCol, miParent)
     def oiSibling(self, dRow=0, dCol=0):
         miSib = self.sibling(dRow, dCol)
-        return self.model().asObjIndex(miSib)
+        return self.mi.model().asObjIndex(miSib)
     def dataChanged(self, dRow=0, dCol=0):
+        mi = self.mi
         if dRow or dCol:
             miSib = self.sibling(dRow, dCol)
         else: miSib = self.mi
-        return self.model().dataChanged.emit(self.mi, miSib)
+        return mi.model().dataChanged.emit(mi, miSib)
 
     def beginInsertRows(self, r0, r1=None):
-        return self.model().beginInsertRows(self.mi, r0, r1)
+        return self.mi.model().beginInsertRows(self.mi, r0, r1)
     def endInsertRows(self):
-        return self.model().endInsertRows()
+        return self.mi.model().endInsertRows()
 
     def beginRemoveRows(self, r0, r1=None):
-        return self.model().beginRemoveRows(self.mi, r0, r1)
+        return self.mi.model().beginRemoveRows(self.mi, r0, r1)
     def endRemoveRows(self):
-        return self.model().endRemoveRows()
+        return self.mi.model().endRemoveRows()
+
+    def beginMoveRows(self, r0, r1=None):
+        return self.mi.model().beginMoveRows(self.mi, r0, r1)
+    def endMoveRows(self):
+        return self.mi.model().endMoveRows()
+
+    def updateChildren(self):
+        self.beginRemoveRows(0,-1)
+        self.endRemoveRows()
 

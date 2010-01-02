@@ -10,6 +10,8 @@
 #~ Imports 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+from .objIndex import ObjectCollectionEntry
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -18,6 +20,8 @@ class BaseObjectAdaptor(object):
     def isObjectAdaptor(self): return True
     def isObjectCollection(self): return False
 
+    def oiUpdate(self, oi, parentRef):
+        return self
     def flags(self, oi=None):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
     def data(self, oi=None, role=None):
@@ -28,10 +32,15 @@ class BaseObjectAdaptor(object):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class BaseObjectCollection(object):
+    Entry = ObjectCollectionEntry
+
+    def __init__(self, entries=None):
+        self.Entry = self.Entry.newFlyweight(self)
+
     def isObjectAdaptor(self): return False
     def isObjectCollection(self): return True
 
-    def parentCollection(self):
+    def getParentCollection(self):
         """Returns the parent collection containing this collection.  
         
         Used to resolve parent of a model index"""
@@ -60,8 +69,12 @@ class BaseObjectCollection(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    def asObjIndex(self, qItemModel):
+        mi = self.asModelIndex(qItemModel)
+        oi = qItemModel.asObjIndex(mi)
+        return oi
     def asModelIndex(self, qItemModel):
-        p = self.parentCollection()
+        p = self.getParentCollection()
         if p is None: 
             return qItemModel.InvalidIndex()
         return p.modelIndexForChild(qItemModel, self) 
@@ -75,6 +88,17 @@ class BaseObjectCollection(object):
         except LookupError:
             return qItemModel.InvalidIndex()
         return qItemModel.createIndex(row, col, entry)
+
+    def oiUpdate(self, oi, parentRef):
+        return self
+
+    def rootCollection(self):
+        coll = self
+        while 1:
+            parent = coll.getParentCollection()
+            if parent is None:
+                return coll
+            else: coll = parent
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

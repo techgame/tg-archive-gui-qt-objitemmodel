@@ -13,8 +13,12 @@ from TG.gui.qt import objItemModel as OIM
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class NamespaceEntry(OIM.ObjAdaptor):
-    def __init__(self, name, target, parent):
-        self.value = '%s (%s)' % (name, target.__class__.__name__)
+    def __init__(self, name, target):
+        klass = getattr(target, '__class__', None)
+        if klass is not None:
+            self.value = '%s (%s)' % (name, target.__class__.__name__)
+        else:
+            self.value = '%s (%s)' % (name, type(target).__name__)
     def accept(self, v): 
         return v.visitNamespaceEntry(self)
 
@@ -22,22 +26,26 @@ class GroupTitle(OIM.ObjAdaptor):
     def accept(self, v): return v.visitTitle(self)
 
 
-class Namespace(OIM.ObjCollectionEx):
+class Namespace(OIM.ObjCollection):
     ObjectAdaptor = NamespaceEntry
-    def __init__(self, name, target, parent=None):
+
+    targetNS = None
+    def __init__(self, name, target):
         self.name = name
         self.target = target
-        self.targetNS = vars(target)
-        if self.targetNS:
-            self.targetNS = iter(sorted(self.targetNS.items()))
-        else: self.targetNS = None
 
-        super(Namespace, self).__init__(parent)
+        try: targetNS = vars(target)
+        except TypeError: self.targetNS = None
+        else:
+            if targetNS:
+                self.targetNS = iter(sorted(targetNS.items()))
+
+        super(Namespace, self).__init__()
 
     name = None
-    def asObjectAdaptor(self, parent):
+    def asObjectAdaptor(self):
         if self.name is not None:
-            return NamespaceEntry(self.name, self.target, parent)
+            return NamespaceEntry(self.name, self.target)
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self.target)
@@ -58,48 +66,29 @@ class Namespace(OIM.ObjCollectionEx):
             if e[0].startswith('_'): 
                 continue
             C = len(self._entryList)
-            oi.beginInsertRows(C, C)
-            self.append(e)
-            oi.endInsertRows()
+            self.append(Namespace(*e), oi=oi)
 
         else: 
             self.targetNS = None
 
         if not self.hasChildren(oi):
-            oi.beginRemoveRows(0,0)
-            oi.endRemoveRows()
-
-    def newEntryForData(self, data):
-        name, ns = data
-        try: 
-            vars(ns)
-        except TypeError: 
-            return (NamespaceEntry(name, ns, self), None)
-        else: 
-            coll = Namespace(name, ns, self)
-            return (coll.asObjectAdaptor(self), coll)
+            oi.updateChildren()
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class GroupCollection(OIM.ObjCollectionEx):
+class GroupCollection(OIM.ObjCollection):
     ObjectAdaptor = GroupTitle
     name = None
-    def asObjectAdaptor(self, parent):
+    def asObjectAdaptor(self):
         if self.name is not None:
-            return GroupTitle(self.name, parent)
+            return GroupTitle(self.name)
 
-class ModuleCollection(OIM.ObjCollectionEx):
+class ModuleCollection(OIM.ObjCollection):
     ObjectAdaptor = GroupTitle
     name = None
-    def asObjectAdaptor(self, parent):
+    def asObjectAdaptor(self):
         if self.name is not None:
-            return GroupTitle(self.name, parent)
-    def newEntryForData(self, data):
-        name, ns = data
-        assert ns is not None
-        coll = Namespace(name, ns, self)
-        return (coll.asObjectAdaptor(self), coll)
-
+            return GroupTitle(self.name)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class TextDocumentDelegate(OIM.ObjectItemDelegate):
@@ -157,14 +146,14 @@ class VisitingDelegate(OIM.ObjectDispatchDelegate):
     def visitTitle(self, item):
         d = self._d_title
         if d is None:
-            d = TitleDelegate(self.parent())
+            d = TitleDelegate()
             self._d_title = d
         return d
     _d_nsEntry = None
     def visitNamespaceEntry(self, item):
         d = self._d_nsEntry
         if d is None:
-            d = NamespaceDelegate(self.parent())
+            d = NamespaceDelegate()
             self._d_nsEntry = d
         return d
 
@@ -192,23 +181,23 @@ class Form(QtGui.QMainWindow):
             dpath.setdefault(p, []).append((k,v))
 
         self.root = GroupCollection()
-        cNS = GroupCollection(self.root)
+        cNS = GroupCollection()
         cNS.name = "Namespaces"
         r = []
         for k, v in sorted(dns.items()):
-            coll = ModuleCollection(cNS)
+            coll = ModuleCollection()
             coll.name = k
-            coll.extend(v)
+            coll.extend(Namespace(*e) for e in v)
             r.append(coll)
         cNS.extend(r)
 
-        cPath = GroupCollection(self.root)
+        cPath = GroupCollection()
         cPath.name = "Paths"
         r = []
         for k, v in sorted(dpath.items()):
-            coll = ModuleCollection(cPath)
+            coll = ModuleCollection()
             coll.name = k
-            coll.extend(v)
+            coll.extend(Namespace(*e) for e in v)
             r.append(coll)
         cPath.extend(r)
 

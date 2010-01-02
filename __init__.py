@@ -12,9 +12,9 @@
 
 from .objModel import ObjItemModel, ObjectCollectionItemModel
 
-from .collection import ObjectAdaptor, ObjectCollection, ObjectCollectionEx
-from .collection import ObjAdaptor, ObjCollection, ObjCollectionEx
+from .collection import ObjectAdaptor, ObjectCollection
+from .collection import ObjAdaptor, ObjCollection
 
-from .objDelegates import ObjectDispatchDelegate, ObjectItemDelegate
-from .objDelegates import ObjDispatchDelegate, ObjItemDelegate
+from .objDelegates import ObjectDispatchDelegate, ObjectItemDelegate, ObjectStyledItemDelegate
+from .objDelegates import ObjDispatchDelegate, ObjItemDelegate, ObjStyledItemDelegate
 
