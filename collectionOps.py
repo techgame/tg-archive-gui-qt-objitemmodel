@@ -119,3 +119,39 @@ class CollectionChangeOp(CollectionOpBase):
             M.changePersistentIndexList(fromList, toList)
             M.layoutChanged()
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~ Simple interface to changeOp
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class EntryListOps(object):
+    def __init__(self, changeOp):
+        self._op = changeOp
+
+    def __len__(self):
+        return len(self._entryList)
+
+    def append(self, item):
+        with self._op as entries:
+            entries.append(item)
+    def insert(self, index, item):
+        with self._op as entries:
+            entries.insert(index, item)
+    def extend(self, items):
+        with self._op as entries:
+            entries.extend(items)
+    def assign(self, items):
+        with self._op as entries:
+            entries[:] = items
+    def clear(self, items):
+        with self._op as entries:
+            del entries[:]
+
+    def __getitem__(self, index):
+        return self._entryList[index]
+    def __setitem__(self, index, items):
+        with self._op as entries:
+            entries[index] = items
+    def __delitem__(self, index):
+        with self._op as entries:
+            del entries[index]
+

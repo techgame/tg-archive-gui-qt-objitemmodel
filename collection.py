@@ -155,18 +155,21 @@ class ObjectCollection(BaseObjectCollection):
         if oi is not None:
             oi = self.asObjIndex(oi)
         return ops.CollectionChangeOp(self, oi)
+    def entries(self, oi=None):
+        return ops.EntryListOps(self.changeOp(oi))
 
     def append(self, item, oi=None):
-        with self.changeOp(oi) as entries:
-            entries.append(item)
-
+        return self.entries(oi).append(item)
     def insert(self, index, item, oi=None):
-        with self.changeOp(oi) as entries:
-            entries.insert(index, item)
-
+        return self.entries(oi).insert(index, item)
+    def assign(self, items, oi=None):
+        return self.entries(oi).assign(items)
     def extend(self, items, oi=None):
-        with self.changeOp(oi) as entries:
-            entries.extend(items)
+        return self.entries(oi).extend(items)
+    def clear(self, items, oi=None):
+        return self.entries(oi).clear(items)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ObjCollection = ObjectCollection
 

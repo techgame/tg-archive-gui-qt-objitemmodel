@@ -74,10 +74,7 @@ class BaseObjectCollection(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def asObjIndex(self, model):
-        if isinstance(model, QModelIndex):
-            mi = model
-            oi = mi.model().asObjIndex(mi)
-        elif model.isObjModel():
+        if model.isObjModel():
             mi = self.asModelIndex(model)
             oi = model.asObjIndex(mi)
         elif model.isObjIndex():
