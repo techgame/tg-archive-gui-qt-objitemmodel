@@ -31,6 +31,8 @@ class CollectionOpBase(object):
     def __init__(self, collection, oi):
         self.collection = collection
         if oi is not None:
+            if not oi.isObjIndex():
+                raise ValueError("Expected an object index instance")
             self.oi = oi
 
     def __enter__(self):

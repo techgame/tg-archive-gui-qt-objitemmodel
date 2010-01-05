@@ -24,6 +24,11 @@ class BaseObjectCollectionItemModel(QAbstractItemModel):
     InvalidIndex = QModelIndex
     asObjIndex = ObjectModelIndex.fromIndex
 
+    def isObjModel(self): return True
+    def isObjIndex(self): return False
+    def isObjAdaptor(self): return False
+    def isObjCollection(self): return False
+
     def rootCollection(self):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
 
@@ -117,7 +122,7 @@ class ObjectCollectionItemModel(BaseObjectCollectionItemModel):
     def rootCollection(self):
         return self._root
     def setRootCollection(self, root):
-        if not root.isObjectCollection():
+        if not root.isObjCollection():
             raise ValueError("Expected an root with the item collection protocol")
         self._root = root
     root = property(rootCollection, setRootCollection)

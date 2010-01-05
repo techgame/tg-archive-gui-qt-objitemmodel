@@ -19,8 +19,6 @@ import weakref
 class ObjectCollectionEntry(object):
     __slots__ = ('item', 'collection')
 
-    item = None
-    collection = None
     parent = None
     def __init__(self, item, collection=None):
         self.item = item
@@ -68,6 +66,11 @@ class ObjectModelIndex(object):
         if not self:
             return '<oi invalid>'
         return '<oi %s %r>' % (self.rc(), self.item())
+
+    def isObjIndex(self): return True
+    def isObjModel(self): return False
+    def isObjAdaptor(self): return False
+    def isObjCollection(self): return False
 
     @classmethod
     def fromIndex(klass, index):

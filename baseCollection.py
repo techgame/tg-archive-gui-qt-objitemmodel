@@ -17,8 +17,10 @@ from .objIndex import ObjectCollectionEntry
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class BaseObjectAdaptor(object):
-    def isObjectAdaptor(self): return True
-    def isObjectCollection(self): return False
+    def isObjAdaptor(self): return True
+    def isObjCollection(self): return False
+    def isObjIndex(self): return False
+    def isObjModel(self): return False
 
     def oiUpdate(self, oi, parentRef):
         return self
@@ -37,8 +39,10 @@ class BaseObjectCollection(object):
     def __init__(self, entries=None):
         self.Entry = self.Entry.newFlyweight(self)
 
-    def isObjectAdaptor(self): return False
-    def isObjectCollection(self): return True
+    def isObjAdaptor(self): return False
+    def isObjCollection(self): return True
+    def isObjIndex(self): return False
+    def isObjModel(self): return False
 
     def getParentCollection(self):
         """Returns the parent collection containing this collection.  
@@ -69,10 +73,19 @@ class BaseObjectCollection(object):
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def asObjIndex(self, qItemModel):
-        mi = self.asModelIndex(qItemModel)
-        oi = qItemModel.asObjIndex(mi)
+    def asObjIndex(self, model):
+        if isinstance(model, QModelIndex):
+            mi = model
+            oi = mi.model().asObjIndex(mi)
+        elif model.isObjModel():
+            mi = self.asModelIndex(model)
+            oi = model.asObjIndex(mi)
+        elif model.isObjIndex():
+            oi = model
+        else:
+            raise ValueError("Expected a ObjectModel to resolve model index against")
         return oi
+        
     def asModelIndex(self, qItemModel):
         p = self.getParentCollection()
         if p is None: 

@@ -137,11 +137,11 @@ class ObjectCollection(BaseObjectCollection):
         if isinstance(item, (tuple, list)):
             return item
 
-        if item.isObjectCollection():
+        if item.isObjCollection():
             adp = item.asObjectAdaptor()
             return (adp, item)
 
-        elif item.isObjectAdaptor():
+        elif item.isObjAdaptor():
             coll = item.asObjectCollection()
             return (item, coll)
 
@@ -152,6 +152,8 @@ class ObjectCollection(BaseObjectCollection):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def changeOp(self, oi=None):
+        if oi is not None:
+            oi = self.asObjIndex(oi)
         return ops.CollectionChangeOp(self, oi)
 
     def append(self, item, oi=None):
