@@ -64,14 +64,19 @@ class CollectionChangeOp(CollectionOpBase):
         coll.normalizeEntries(changed)
         coll.invalidateCache()
 
-        if self.oi:
-            changeMap = dict((e,i) for i,e in enumerate(changed))
-            self.doRemovals(base, changeMap)
-            self.doAdds(base, changeMap)
-            self.doMoves(base, changed, changeMap)
-        else:
+        if not self.oi:
             base[:] = changed
+            return
 
+        if not (base or changed):
+            # trigger a refresh of child count to remove child indicators
+            self.oi.updateChildren()
+            return
+
+        changeMap = dict((e,i) for i,e in enumerate(changed))
+        self.doRemovals(base, changeMap)
+        self.doAdds(base, changeMap)
+        self.doMoves(base, changed, changeMap)
         coll.invalidateCache()
 
     def doRemovals(self, base, changeMap):
