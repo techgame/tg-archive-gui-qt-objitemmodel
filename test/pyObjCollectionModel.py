@@ -159,8 +159,29 @@ class VisitingDelegate(OIM.ObjectDispatchDelegate):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class Form(QtGui.QMainWindow):
+class Form(QtGui.QWidget):
     def initGui(self):
+        vl = QtGui.QVBoxLayout()
+        self.setLayout(vl)
+
+        self.root = GroupCollection()
+        self.model = OIM.ObjItemModel(self.root)
+        self.view = view = QtGui.QTreeView()
+        view.setModel(self.model)
+        view.setItemDelegate(VisitingDelegate(view))
+        view.setAttribute(Qt.WA_MacShowFocusRect, 0)
+        view.setHeaderHidden(True)
+        vl.addWidget(view, 1)
+
+        btn = QtGui.QPushButton()
+        vl.addWidget(btn, 0)
+        btn.setText("Refresh")
+        btn.clicked.connect(self.refreshContent)
+        self.initCollection(self.root)
+
+    def refreshContent(self, *args, **kw):
+        self.initCollection(self.root)
+    def initCollection(self, root):
         dns = {}
         dpath = {}
         for k, v in sys.modules.items():
@@ -180,7 +201,6 @@ class Form(QtGui.QMainWindow):
             dns.setdefault(ns, []).append((rest,v))
             dpath.setdefault(p, []).append((k,v))
 
-        self.root = GroupCollection()
         cNS = GroupCollection()
         cNS.name = "Namespaces"
         r = []
@@ -201,13 +221,8 @@ class Form(QtGui.QMainWindow):
             r.append(coll)
         cPath.extend(r)
 
-        self.root.extend([cNS, cPath])
-        self.model = OIM.ObjItemModel(self.root)
-
-        self.view = QtGui.QTreeView()
-        self.view.setModel(self.model)
-        self.view.setItemDelegate(VisitingDelegate(self.view))
-        self.setCentralWidget(self.view)
+        root.assign([cNS, cPath], self.model)
+        self.model.reset()
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
