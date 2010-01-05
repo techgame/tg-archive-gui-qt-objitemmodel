@@ -4,6 +4,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 import os, sys, time
+import types
 
 from TG.gui.qt.objItemModel.apiQt import QtCore, QtGui, Qt, QVariant
 from TG.gui.qt import objItemModel as OIM
@@ -12,22 +13,27 @@ from TG.gui.qt import objItemModel as OIM
 #~ Definitions 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+class SimpleEntry(OIM.ObjAdaptor):
+    def accept(self, v): 
+        return v.visitSimpleEntry(self)
 class NamespaceEntry(OIM.ObjAdaptor):
     def __init__(self, name, target):
-        klass = getattr(target, '__class__', None)
-        if klass is not None:
-            self.value = '%s (%s)' % (name, target.__class__.__name__)
-        else:
-            self.value = '%s (%s)' % (name, type(target).__name__)
+        self.name = name
+        self.setTarget(target)
     def accept(self, v): 
         return v.visitNamespaceEntry(self)
+
+    def setTarget(self, target):
+        tgtKlass = type(target)
+        self.value = '%s (%s)' % (self.name, tgtKlass.__name__)
 
 class GroupTitle(OIM.ObjAdaptor):
     def accept(self, v): return v.visitTitle(self)
 
 
 class Namespace(OIM.ObjCollection):
-    ObjectAdaptor = NamespaceEntry
+    Adaptor = NamespaceEntry
+    factoryMap = {}
 
     targetNS = None
     def __init__(self, name, target):
@@ -45,10 +51,10 @@ class Namespace(OIM.ObjCollection):
     name = None
     def asObjectAdaptor(self):
         if self.name is not None:
-            return NamespaceEntry(self.name, self.target)
+            return self.Adaptor(self.name, self.target)
 
     def __repr__(self):
-        return "<%s %s>" % (self.__class__.__name__, self.target)
+        return "<%s %s>" % (type(self).__name__, self.target)
 
     def hasChildren(self, oi=None):
         if self._entryList:
@@ -62,33 +68,91 @@ class Namespace(OIM.ObjCollection):
         if not self.targetNS:
             return
 
-        for e in self.targetNS:
-            if e[0].startswith('_'): 
+        results = self.buildResults()
+        self.assign(results, oi)
+        self.targetNS = None
+
+    def buildResults(self):
+        results = []
+        for name, target in self.targetNS:
+            if not self.keepItem(name, target):
                 continue
-            C = len(self._entryList)
-            self.append(Namespace(*e), oi=oi)
 
-        else: 
-            self.targetNS = None
+            item = self.fromItem(name, target)
+            if item is not None:
+                results.append(item)
+        return results
 
-        if not self.hasChildren(oi):
-            oi.updateChildren()
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    def keepItem(self, name, target):
+        return not name.startswith('_')
+
+    @classmethod
+    def fromItem(klass, name, target):
+        targetKlass = type(target)
+        mro = getattr(targetKlass, '__mro__', [targetKlass])
+
+        sentinal = object()
+        for K in mro:
+            Factory = klass.factoryMap.get(K, sentinal)
+            if Factory is not sentinal: 
+                break
+        else: Factory = Namespace
+
+        if Factory is not None:
+            return Factory(name, target)
+
+    @classmethod
+    def register(klass, *types):
+        klass.factoryMap.update((t,klass) for t in types)
+
+class ModuleNamespace(Namespace):
+    def keepItem(self, name, target):
+        module = getattr(target, '__module__', None)
+        if module is not None:
+            return module == self.target.__name__
+        return not name.startswith('_')
+
+ModuleNamespace.register(types.ModuleType)
+
+class TypeNamespace(Namespace):
+    def keepItem(self, name, target):
+        return True
+
+    def buildResults(self):
+        results = [
+            BaseClassCollection(
+                TypeNamespace(e.__name__, e) for e in self.target.__bases__),
+            SubClassCollection(
+               TypeNamespace(e.__name__, e) for e in self.target.__subclasses__()),
+            ]
+
+        #results.extend(Namespace.buildResults(self))
+        return results
+
+TypeNamespace.register(types.TypeType, types.ClassType)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class GroupCollection(OIM.ObjCollection):
-    ObjectAdaptor = GroupTitle
-    name = None
+class ClassCollection(OIM.ObjCollection):
+    name = 'Classes'
     def asObjectAdaptor(self):
-        if self.name is not None:
-            return GroupTitle(self.name)
+        return SimpleEntry(self.name)
+class SubClassCollection(ClassCollection):
+    name = 'Sub Classes'
+class BaseClassCollection(ClassCollection):
+    name = 'Base Classes'
+
+class GroupCollection(OIM.ObjCollection):
+    name = 'Group'
+    def asObjectAdaptor(self):
+        return GroupTitle(self.name)
 
 class ModuleCollection(OIM.ObjCollection):
-    ObjectAdaptor = GroupTitle
-    name = None
+    name = 'Modules'
     def asObjectAdaptor(self):
-        if self.name is not None:
-            return GroupTitle(self.name)
+        return GroupTitle(self.name)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class TextDocumentDelegate(OIM.ObjectItemDelegate):
@@ -140,7 +204,10 @@ class TitleDelegate(TextDocumentDelegate):
 class VisitingDelegate(OIM.ObjectDispatchDelegate):
     def asDelegate(self, mi):
         oi = self.asObjIndex(mi)
-        return oi, oi.item().accept(self)
+        d = oi.item().accept(self)
+        if d is None:
+            d = self.visitSimpleEntry(oi.item())
+        return oi, d
 
     _d_title = None
     def visitTitle(self, item):
@@ -156,22 +223,43 @@ class VisitingDelegate(OIM.ObjectDispatchDelegate):
             d = NamespaceDelegate()
             self._d_nsEntry = d
         return d
+    _d_simpleEntry = None
+    def visitSimpleEntry(self, item):
+        d = self._d_simpleEntry
+        if d is None:
+            d = TextDocumentDelegate()
+            self._d_simpleEntry = d
+        return d
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class Form(QtGui.QWidget):
     def initGui(self):
+        self.resize(960,720)
+        self.splitter = splitter = QtGui.QSplitter()
+        splitter.setOrientation(Qt.Vertical)
+
         vl = QtGui.QVBoxLayout()
         self.setLayout(vl)
+        vl.addWidget(splitter)
 
         self.root = GroupCollection()
         self.model = OIM.ObjItemModel(self.root)
-        self.view = view = QtGui.QTreeView()
-        view.setModel(self.model)
-        view.setItemDelegate(VisitingDelegate(view))
-        view.setAttribute(Qt.WA_MacShowFocusRect, 0)
-        view.setHeaderHidden(True)
-        vl.addWidget(view, 1)
+        self.selModel = QtGui.QItemSelectionModel(self.model)
+
+        self.treeView = treeView = QtGui.QTreeView()
+        treeView.setModel(self.model)
+        treeView.setSelectionModel(self.selModel)
+        treeView.setItemDelegate(VisitingDelegate(treeView))
+        treeView.setAttribute(Qt.WA_MacShowFocusRect, 0)
+        treeView.setHeaderHidden(True)
+        splitter.addWidget(treeView)
+        #vl.addWidget(treeView, 1)
+
+        self.colView = colView = QtGui.QColumnView()
+        colView.setModel(self.model)
+        colView.setSelectionModel(self.selModel)
+        splitter.addWidget(colView)
 
         btn = QtGui.QPushButton()
         vl.addWidget(btn, 0)
@@ -192,24 +280,16 @@ class Form(QtGui.QWidget):
 
             p = os.path.abspath(p)
             p = os.path.dirname(p)
+            if p.startswith(sys.exec_prefix):
+                continue
 
             ns,sep,rest = k.partition('.')
             if not sep: 
-                rest = ns
-                ns = '<global>'
-
-            dns.setdefault(ns, []).append((rest,v))
+                dns[ns] = v
             dpath.setdefault(p, []).append((k,v))
 
-        cNS = GroupCollection()
+        cNS = GroupCollection(Namespace.fromItem(k,v) for k, v in sorted(dns.items()))
         cNS.name = "Namespaces"
-        r = []
-        for k, v in sorted(dns.items()):
-            coll = ModuleCollection()
-            coll.name = k
-            coll.extend(Namespace(*e) for e in v)
-            r.append(coll)
-        cNS.extend(r)
 
         cPath = GroupCollection()
         cPath.name = "Paths"
@@ -217,7 +297,7 @@ class Form(QtGui.QWidget):
         for k, v in sorted(dpath.items()):
             coll = ModuleCollection()
             coll.name = k
-            coll.extend(Namespace(*e) for e in v)
+            coll.extend(Namespace.fromItem(*e) for e in sorted(v))
             r.append(coll)
         cPath.extend(r)
 
@@ -262,13 +342,16 @@ QTreeView::item:selected:!active {
 #~ Main 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-if __name__=='__main__':
-    app = QtGui.QApplication(sys.argv) 
-    app.setStyleSheet(css_treeview)
+def showBrowser():
     form = Form()
+    form.setStyleSheet(css_treeview)
     form.initGui()
     form.show() 
     form.raise_() 
+    return form
 
+if __name__=='__main__':
+    app = QtGui.QApplication(sys.argv) 
+    form = showBrowser()
     sys.exit(app.exec_()) 
 
