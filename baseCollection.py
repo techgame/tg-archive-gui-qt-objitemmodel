@@ -74,9 +74,13 @@ class BaseObjectCollection(object):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def asObjIndex(self, model):
-        if model.isObjModel():
+        if model is None:
+            oi = None
+        elif model.isObjModel():
             mi = self.asModelIndex(model)
-            oi = model.asObjIndex(mi)
+            if not mi.isValid() and self.getParentCollection() is None:
+                oi = model.createRootIndex()
+            else: oi = model.asObjIndex(mi)
         elif model.isObjIndex():
             oi = model
         else:

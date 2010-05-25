@@ -64,7 +64,7 @@ class CollectionChangeOp(CollectionOpBase):
         coll.normalizeEntries(changed)
         coll.invalidateCache()
 
-        if not self.oi:
+        if self.oi is None or self.oi.model() is None:
             base[:] = changed
             return
 
@@ -147,7 +147,7 @@ class EntryListOps(object):
     def assign(self, items):
         with self._op as entries:
             entries[:] = items
-    def clear(self, items):
+    def clear(self):
         with self._op as entries:
             del entries[:]
 

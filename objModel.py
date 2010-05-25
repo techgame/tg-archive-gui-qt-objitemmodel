@@ -22,7 +22,6 @@ class BaseObjectCollectionItemModel(QAbstractItemModel):
     abstractions set forth by ObjectModelIndex"""
 
     InvalidIndex = QModelIndex
-    asObjIndex = ObjectModelIndex.fromIndex
 
     def isObjModel(self): return True
     def isObjIndex(self): return False
@@ -32,9 +31,15 @@ class BaseObjectCollectionItemModel(QAbstractItemModel):
     def rootCollection(self):
         raise NotImplementedError('Subclass Responsibility: %r' % (self,))
 
+    def asObjIndex(self, mi):
+        return ObjectModelIndex.fromIndex(mi, self)
+    def createRootIndex(self):
+        return self.asObjIndex(self.InvalidIndex())
+
     def parent(self, mi):
         oi = self.asObjIndex(mi)
         parent = oi.parent() if oi else None
+
         if parent is not None:
             return parent.asModelIndex(self)
         else: return QModelIndex()
@@ -108,7 +113,10 @@ class BaseObjectCollectionItemModel(QAbstractItemModel):
         for oi in self.withObjIndex(mi):
             return oi.item().setData(oi, value, role)
         else: return False
-
+    def itemForIndex(self, mi):
+        for oi in self.withObjIndex(mi):
+            return oi.item()
+        
 BaseObjItemModel = BaseObjectCollectionItemModel
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

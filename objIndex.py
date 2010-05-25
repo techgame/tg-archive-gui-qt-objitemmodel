@@ -11,6 +11,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 import weakref
+from .apiQt import QModelIndex
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Definitions 
@@ -60,8 +61,10 @@ class ObjectModelIndex(object):
     3-entry tuple, whose references are kept is the
     BaseObjectCollection.  It defines basic helper methods based
     on this design.  """
-    def __init__(self, mi):
+    def __init__(self, mi, model=None):
         self.mi = mi
+        if not self.isValid():
+            self._model = model
     def __repr__(self):
         if not self:
             return '<oi invalid>'
@@ -73,8 +76,8 @@ class ObjectModelIndex(object):
     def isObjCollection(self): return False
 
     @classmethod
-    def fromIndex(klass, index):
-        return klass(index)
+    def fromIndex(klass, index, model):
+        return klass(index, model)
 
     def __nonzero__(self):
         return self.mi.isValid()
@@ -91,11 +94,15 @@ class ObjectModelIndex(object):
     def rc(self): return (self.mi.row(), self.mi.column())
     def row(self): return self.mi.row()
     def column(self): return self.mi.column()
-    def model(self): return self.mi.model()
+    def model(self): 
+        model = self.mi.model()
+        if model is None:
+            model = self._model
+        return model
 
     def oiFindNext(self):
         mi = self.findNext()
-        return self.mi.model().asObjIndex(mi)
+        return self.model().asObjIndex(mi)
     def findNext(self):
         mi = self.child()
         if mi.isValid(): 
@@ -103,14 +110,14 @@ class ObjectModelIndex(object):
         return self.sibling(1, self.column())
 
     def child(self, dRow=0, dCol=0):
-        model = self.mi.model()
+        model = self.model()
         coll = self.collection()
         if coll is None:
             return model.InvalidIndex()
         return coll.modelIndex(model, dRow, dCol)
     def oiChild(self, dRow=0, dCol=0):
         miChild = self.child(dRow, dCol)
-        return self.mi.model().asObjIndex(miChild)
+        return self.model().asObjIndex(miChild)
 
     def sibling(self, dRow=0, dCol=0):
         mi = self.mi
@@ -119,7 +126,7 @@ class ObjectModelIndex(object):
         return model.index(mi.row()+dRow, mi.column()+dCol, miParent)
     def oiSibling(self, dRow=0, dCol=0):
         miSib = self.sibling(dRow, dCol)
-        return self.mi.model().asObjIndex(miSib)
+        return self.model().asObjIndex(miSib)
     def dataChanged(self, dRow=0, dCol=0):
         mi = self.mi
         if dRow or dCol:
@@ -128,19 +135,21 @@ class ObjectModelIndex(object):
         return mi.model().dataChanged.emit(mi, miSib)
 
     def beginInsertRows(self, r0, r1=None):
-        return self.mi.model().beginInsertRows(self.mi, r0, r1)
+        mi = self.mi
+        if not mi.isValid(): mi = QModelIndex()
+        return self.model().beginInsertRows(mi, r0, r1)
     def endInsertRows(self):
-        return self.mi.model().endInsertRows()
+        return self.model().endInsertRows()
 
     def beginRemoveRows(self, r0, r1=None):
-        return self.mi.model().beginRemoveRows(self.mi, r0, r1)
+        return self.model().beginRemoveRows(self.mi, r0, r1)
     def endRemoveRows(self):
-        return self.mi.model().endRemoveRows()
+        return self.model().endRemoveRows()
 
     def beginMoveRows(self, r0, r1=None):
-        return self.mi.model().beginMoveRows(self.mi, r0, r1)
+        return self.model().beginMoveRows(self.mi, r0, r1)
     def endMoveRows(self):
-        return self.mi.model().endMoveRows()
+        return self.model().endMoveRows()
 
     def updateChildren(self):
         self.beginRemoveRows(0,-1)

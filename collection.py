@@ -166,8 +166,8 @@ class ObjectCollection(BaseObjectCollection):
         return self.entries(oi).assign(items)
     def extend(self, items, oi=None):
         return self.entries(oi).extend(items)
-    def clear(self, items, oi=None):
-        return self.entries(oi).clear(items)
+    def clear(self, oi=None):
+        return self.entries(oi).clear()
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
